@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { GameState, GameTheme, Language, PlayerRole } from '../lib/types';
+import { GameState, GameTheme, Language, PlayerRole, UserTeamChoice } from '../lib/types';
 import { createGame, giveClue, makeGuess, endTurn, generateSeed, generateRoomId } from '../lib/engine';
 import { sounds } from '../lib/audio';
 import { Header } from './Header';
@@ -44,6 +44,7 @@ function getInitialGameState(): GameState {
 
 export default function CodenamesGame() {
   const [gameState, setGameState] = useState<GameState>(getInitialGameState);
+  const [myTeam, setMyTeam] = useState<UserTeamChoice>('both');
   const [role, setRole] = useState<PlayerRole>('operative');
   const [isRulesOpen, setIsRulesOpen] = useState(false);
 
@@ -212,15 +213,19 @@ export default function CodenamesGame() {
         {/* Score & Turn Banner */}
         <ScoreBoard
           gameState={gameState}
+          myTeam={myTeam}
           onTimerToggle={handleTimerToggle}
           onTimerReset={handleTimerReset}
+          onJoinTeam={(team) => setMyTeam(team)}
         />
 
-        {/* Role Switcher */}
+        {/* Role & Team Switcher */}
         <RoleToggle
           role={role}
+          myTeam={myTeam}
           language={gameState.language}
           onRoleChange={(newRole) => setRole(newRole)}
+          onTeamChange={(team) => setMyTeam(team)}
         />
 
         {/* Active Clue & Guessing Controls */}

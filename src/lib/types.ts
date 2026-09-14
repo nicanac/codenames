@@ -1,5 +1,7 @@
 export type Team = 'red' | 'blue';
 
+export type UserTeamChoice = 'red' | 'blue' | 'both';
+
 export type CardType = 'red' | 'blue' | 'neutral' | 'assassin';
 
 export type PlayerRole = 'operative' | 'spymaster';
