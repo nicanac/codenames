@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { GameState, GameTheme, Language, LobbyPlayer, LobbyViewMode, PlayerRole, Team, UserTeamChoice } from '../lib/types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { ActiveRoomSummary, GameState, GameTheme, Language, LobbyPlayer, LobbyViewMode, PlayerRole, Team, UserTeamChoice } from '../lib/types';
 import { createGame, giveClue, makeGuess, endTurn, generateSeed, generateRoomId } from '../lib/engine';
 import { sounds } from '../lib/audio';
-import { getLocalPlayerId, getLocalNickname, setLocalNickname, RoomSyncChannel } from '../lib/lobbySync';
+import { getLocalPlayerId, getLocalNickname, setLocalNickname, RoomSyncChannel, getStoredActiveRooms, registerActiveRoom } from '../lib/lobbySync';
 import { Header } from './Header';
 import { ScoreBoard } from './ScoreBoard';
 import { RoleToggle } from './RoleToggle';
@@ -63,7 +63,62 @@ export default function CodenamesGame() {
     },
   ]);
 
+  const [activeRooms, setActiveRooms] = useState<ActiveRoomSummary[]>(getStoredActiveRooms);
+
   const channelRef = useRef<RoomSyncChannel | null>(null);
+
+  // Sync active rooms on cross-tab storage changes
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'codenames_active_rooms') {
+        setActiveRooms(getStoredActiveRooms());
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Update & register current room in localStorage external directory
+  useEffect(() => {
+    const redCount = players.filter((p) => p.team === 'red').length;
+    const blueCount = players.filter((p) => p.team === 'blue').length;
+    const currentSummary: ActiveRoomSummary = {
+      roomId: gameState.roomId,
+      theme: gameState.theme,
+      language: gameState.language,
+      playerCount: players.length,
+      redCount,
+      blueCount,
+      status: viewMode === 'lobby' ? 'lobby' : 'playing',
+      lastActive: Date.now(),
+      seed: gameState.seed,
+    };
+    registerActiveRoom(currentSummary);
+  }, [gameState.roomId, gameState.theme, gameState.language, gameState.seed, viewMode, players]);
+
+  // Merge live current room state with known stored active rooms for display
+  const displayActiveRooms = useMemo(() => {
+    const redCount = players.filter((p) => p.team === 'red').length;
+    const blueCount = players.filter((p) => p.team === 'blue').length;
+    const existing = activeRooms.find(
+      (r) => r.roomId.toUpperCase() === gameState.roomId.toUpperCase()
+    );
+    const currentSummary: ActiveRoomSummary = {
+      roomId: gameState.roomId,
+      theme: gameState.theme,
+      language: gameState.language,
+      playerCount: players.length,
+      redCount,
+      blueCount,
+      status: viewMode === 'lobby' ? 'lobby' : 'playing',
+      lastActive: existing?.lastActive ?? 0,
+      seed: gameState.seed,
+    };
+    const withoutCurrent = activeRooms.filter(
+      (r) => r.roomId.toUpperCase() !== gameState.roomId.toUpperCase()
+    );
+    return [currentSummary, ...withoutCurrent];
+  }, [activeRooms, gameState.roomId, gameState.theme, gameState.language, gameState.seed, viewMode, players]);
 
   // Sync state to URL hash
   const updateUrlHash = (room: string, seed: string, lang: Language, theme: GameTheme) => {
@@ -346,12 +401,16 @@ export default function CodenamesGame() {
   };
 
   const handleJoinRoom = (targetRoomId: string) => {
-    const nextSeed = generateSeed();
+    const targetRoomSummary = activeRooms.find((r) => r.roomId.toUpperCase() === targetRoomId.toUpperCase());
+    const nextSeed = targetRoomSummary?.seed || generateSeed();
+    const nextLang = targetRoomSummary?.language || gameState.language;
+    const nextTheme = targetRoomSummary?.theme || gameState.theme;
+
     const newGame = createGame({
       roomId: targetRoomId,
       seed: nextSeed,
-      language: gameState.language,
-      theme: gameState.theme,
+      language: nextLang,
+      theme: nextTheme,
       timerDuration: gameState.timerDuration,
     });
     setGameState(newGame);
@@ -394,6 +453,7 @@ export default function CodenamesGame() {
             timerDuration={gameState.timerDuration}
             players={players}
             currentPlayerId={playerId}
+            activeRooms={displayActiveRooms}
             onUpdateNickname={handleUpdateNickname}
             onClaimSeat={handleClaimSeat}
             onUpdateTheme={handleThemeChange}

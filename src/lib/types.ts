@@ -20,6 +20,18 @@ export interface LobbyPlayer {
   isReady?: boolean;
 }
 
+export interface ActiveRoomSummary {
+  roomId: string;
+  theme: GameTheme;
+  language: Language;
+  playerCount: number;
+  redCount: number;
+  blueCount: number;
+  status: 'lobby' | 'playing';
+  lastActive: number;
+  seed: string;
+}
+
 export interface GameCard {
   id: number;
   word: string;

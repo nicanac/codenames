@@ -1,7 +1,8 @@
-import { GameTheme } from './types';
+import { ActiveRoomSummary, GameTheme } from './types';
 
 const PLAYER_ID_KEY = 'codenames_player_id';
 const PLAYER_NAME_KEY = 'codenames_player_name';
+const ACTIVE_ROOMS_KEY = 'codenames_active_rooms';
 
 const RANDOM_SPY_NAMES = [
   'Agent Phénix', 'Agent Faucon', 'Agent Cobra', 'Agent Ombre', 'Agent Silence',
@@ -12,6 +13,92 @@ const RANDOM_HP_NAMES = [
   'Harry', 'Hermione', 'Ron', 'Neville', 'Luna',
   'Ginny', 'Draco', 'Cédric', 'Tonks', 'Sirius'
 ];
+
+const DEFAULT_FEATURED_ROOMS: ActiveRoomSummary[] = [
+  {
+    roomId: 'HOGWARTS',
+    theme: 'harrypotter',
+    language: 'fr',
+    playerCount: 4,
+    redCount: 2,
+    blueCount: 2,
+    status: 'lobby',
+    lastActive: Date.now(),
+    seed: 'GRYFFINDOR-7',
+  },
+  {
+    roomId: 'POUDLARD-EXPRESS',
+    theme: 'harrypotter',
+    language: 'fr',
+    playerCount: 3,
+    redCount: 2,
+    blueCount: 1,
+    status: 'playing',
+    lastActive: Date.now() - 1000 * 60 * 2,
+    seed: 'PLATFORM-934',
+  },
+  {
+    roomId: 'SECRET-AGENCY',
+    theme: 'classic',
+    language: 'fr',
+    playerCount: 2,
+    redCount: 1,
+    blueCount: 1,
+    status: 'lobby',
+    lastActive: Date.now() - 1000 * 60 * 5,
+    seed: 'CIPHER-101',
+  },
+  {
+    roomId: 'DIAGON-ALLEY',
+    theme: 'harrypotter',
+    language: 'en',
+    playerCount: 5,
+    redCount: 3,
+    blueCount: 2,
+    status: 'playing',
+    lastActive: Date.now() - 1000 * 60 * 1,
+    seed: 'OLLIVANDER-3',
+  },
+  {
+    roomId: 'OMEGA-STRIKE',
+    theme: 'classic',
+    language: 'en',
+    playerCount: 4,
+    redCount: 2,
+    blueCount: 2,
+    status: 'lobby',
+    lastActive: Date.now() - 1000 * 60 * 3,
+    seed: 'SHADOW-404',
+  },
+];
+
+export function getStoredActiveRooms(): ActiveRoomSummary[] {
+  if (typeof window === 'undefined') return DEFAULT_FEATURED_ROOMS;
+  try {
+    const raw = localStorage.getItem(ACTIVE_ROOMS_KEY);
+    if (!raw) {
+      localStorage.setItem(ACTIVE_ROOMS_KEY, JSON.stringify(DEFAULT_FEATURED_ROOMS));
+      return DEFAULT_FEATURED_ROOMS;
+    }
+    const parsed: ActiveRoomSummary[] = JSON.parse(raw);
+    return parsed;
+  } catch {
+    return DEFAULT_FEATURED_ROOMS;
+  }
+}
+
+export function registerActiveRoom(room: ActiveRoomSummary): ActiveRoomSummary[] {
+  if (typeof window === 'undefined') return DEFAULT_FEATURED_ROOMS;
+  try {
+    const current = getStoredActiveRooms();
+    const filtered = current.filter((r) => r.roomId !== room.roomId);
+    const updated = [room, ...filtered].slice(0, 20);
+    localStorage.setItem(ACTIVE_ROOMS_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return DEFAULT_FEATURED_ROOMS;
+  }
+}
 
 export function getLocalPlayerId(): string {
   if (typeof window === 'undefined') return 'server-id';

@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import {
   Users, Crown, Shield, User, Share2, Check, Sparkles,
-  ArrowRight, Plus, LogIn, Dice5, Clock, Globe, X
+  ArrowRight, Plus, LogIn, Dice5, Clock, Globe, X, Search, Radio
 } from 'lucide-react';
-import { GameTheme, Language, LobbyPlayer, PlayerRole, Team } from '../lib/types';
+import { ActiveRoomSummary, GameTheme, Language, LobbyPlayer, PlayerRole, Team } from '../lib/types';
 import { generateRandomName, setLocalNickname } from '../lib/lobbySync';
 
 interface LobbyViewProps {
@@ -16,6 +16,7 @@ interface LobbyViewProps {
   timerDuration: number;
   players: LobbyPlayer[];
   currentPlayerId: string;
+  activeRooms: ActiveRoomSummary[];
   onUpdateNickname: (name: string) => void;
   onClaimSeat: (team: Team | 'spectator', role: PlayerRole) => void;
   onUpdateTheme: (theme: GameTheme) => void;
@@ -33,6 +34,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   timerDuration,
   players,
   currentPlayerId,
+  activeRooms,
   onUpdateNickname,
   onClaimSeat,
   onUpdateTheme,
@@ -46,6 +48,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [newRoomInput, setNewRoomInput] = useState('');
   const [modalMode, setModalMode] = useState<'create' | 'join'>('create');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [themeFilter, setThemeFilter] = useState<'all' | GameTheme>('all');
 
   const me = players.find((p) => p.id === currentPlayerId);
   const [nicknameInput, setNicknameInput] = useState(me?.name || '');
@@ -83,7 +88,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     setNewRoomInput('');
   };
 
-  // Group players by seat
+  // Group players by seat in CURRENT room
   const redSpymaster = players.find((p) => p.team === 'red' && p.role === 'spymaster');
   const redOperatives = players.filter((p) => p.team === 'red' && p.role === 'operative');
 
@@ -92,9 +97,16 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const spectators = players.filter((p) => p.team === 'spectator');
 
+  // Filter available rooms
+  const filteredRooms = activeRooms.filter((r) => {
+    const matchesSearch = r.roomId.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTheme = themeFilter === 'all' || r.theme === themeFilter;
+    return matchesSearch && matchesTheme;
+  });
+
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6 animate-in fade-in duration-200">
-      {/* Top Banner: Room & Player Profile */}
+      {/* 1. NICKNAME & CURRENT ROOM QUICK BAR */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
         {/* Nickname Editor */}
         <div className="flex flex-col gap-2">
@@ -121,16 +133,16 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
           <p className="text-[11px] text-zinc-400">
             {language === 'fr'
-              ? 'Ce nom est visible par les autres joueurs dans le salon et dans le journal.'
-              : 'This name appears to all players in the lobby and operation log.'}
+              ? 'Ce nom est visible par tous les joueurs dans les salons et le journal.'
+              : 'This name appears to everyone across parties and in the action log.'}
           </p>
         </div>
 
-        {/* Room Info & Join / Create */}
+        {/* Current Room Badge & Fast Actions */}
         <div className="flex flex-col gap-2 md:items-end justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono text-zinc-400 font-bold">
-              {language === 'fr' ? 'SALLE :' : 'ROOM:'}
+              {language === 'fr' ? 'SALLE ACTUELLE :' : 'CURRENT ROOM:'}
             </span>
             <span className="text-xl font-mono font-black text-amber-400 tracking-widest bg-zinc-950 px-3.5 py-1 rounded-xl border border-zinc-800">
               {roomId}
@@ -138,10 +150,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             <button
               onClick={handleCopyLink}
               className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer"
-              title="Copier le lien"
+              title="Copier le lien de la salle"
             >
               {copied ? (
-                <span className="text-emerald-400 flex items-center gap-1">
+                <span className="text-emerald-400 flex items-center gap-1 font-bold">
                   <Check className="w-3.5 h-3.5" />
                   <span>{language === 'fr' ? 'Copié' : 'Copied'}</span>
                 </span>
@@ -157,10 +169,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 setModalMode('create');
                 setShowRoomModal(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 font-mono transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 text-xs font-mono font-bold transition-all shadow-sm cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 text-amber-400" />
-              <span>{language === 'fr' ? 'Créer une Salle' : 'Create Room'}</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>{language === 'fr' ? 'Créer une Salle' : 'Create Party'}</span>
             </button>
 
             <button
@@ -171,13 +183,158 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 font-mono transition-colors cursor-pointer"
             >
               <LogIn className="w-3.5 h-3.5 text-blue-400" />
-              <span>{language === 'fr' ? 'Rejoindre une Salle' : 'Join Room'}</span>
+              <span>{language === 'fr' ? 'Rejoindre par Code' : 'Join by Code'}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* TEAM ROSTERS (RED VS BLUE) */}
+      {/* 2. PUBLIC GAMES / AVAILABLE PARTIES DIRECTORY */}
+      <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xl backdrop-blur-md flex flex-col gap-4">
+        {/* Header and Filter bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
+            <h2 className="font-mono font-black text-lg text-white uppercase tracking-wider">
+              {language === 'fr' ? 'Parties Disponibles & Salons Ouverts' : 'Available Parties & Open Lobbies'}
+            </h2>
+            <span className="text-xs bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full font-mono">
+              {filteredRooms.length}
+            </span>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 sm:flex-initial">
+              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={language === 'fr' ? 'Filtrer par nom...' : 'Filter rooms...'}
+                className="w-full sm:w-44 bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            {/* Theme filter tabs */}
+            <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs font-mono">
+              <button
+                onClick={() => setThemeFilter('all')}
+                className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
+                  themeFilter === 'all' ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {language === 'fr' ? 'Tous' : 'All'}
+              </button>
+              <button
+                onClick={() => setThemeFilter('harrypotter')}
+                className={`px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                  themeFilter === 'harrypotter' ? 'bg-amber-950/80 text-amber-300 font-bold border border-amber-500/40' : 'text-zinc-400 hover:text-amber-300'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>HP</span>
+              </button>
+              <button
+                onClick={() => setThemeFilter('classic')}
+                className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
+                  themeFilter === 'classic' ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {language === 'fr' ? 'Classique' : 'Classic'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Room Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filteredRooms.map((room) => {
+            const isCurrent = room.roomId.toUpperCase() === roomId.toUpperCase();
+
+            return (
+              <div
+                key={room.roomId}
+                className={`rounded-2xl p-4 border transition-all duration-200 flex flex-col justify-between gap-3 ${
+                  isCurrent
+                    ? 'bg-amber-950/20 border-amber-500/60 ring-2 ring-amber-500/30 shadow-lg'
+                    : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/60'
+                }`}
+              >
+                {/* Room code & Theme */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        room.status === 'playing' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                      }`}
+                    />
+                    <span className="font-mono font-black text-sm text-white tracking-wider">
+                      {room.roomId}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {room.theme === 'harrypotter' ? (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        <span>HP</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 text-[10px] font-mono font-bold">
+                        CLASSIC
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 text-[10px] font-mono uppercase">
+                      {room.language}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Team distribution & Status */}
+                <div className="flex items-center justify-between text-xs font-mono py-1 px-2 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-400 font-bold flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                      {room.redCount}
+                    </span>
+                    <span className="text-zinc-400">vs</span>
+                    <span className="text-blue-400 font-bold flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                      {room.blueCount}
+                    </span>
+                  </div>
+
+                  <span className="text-[11px] text-zinc-400">
+                    {room.status === 'playing'
+                      ? language === 'fr' ? 'En partie' : 'In game'
+                      : language === 'fr' ? 'Dans le salon' : 'In lobby'}
+                  </span>
+                </div>
+
+                {/* Action Button */}
+                {isCurrent ? (
+                  <div className="w-full py-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-mono text-xs font-bold text-center flex items-center justify-center gap-1.5">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{language === 'fr' ? 'Vous êtes ici' : 'Currently here'}</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onJoinRoom(room.roomId)}
+                    className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-amber-400 hover:text-zinc-950 text-zinc-200 font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+                  >
+                    <span>{language === 'fr' ? 'Rejoindre la partie' : 'Join this Party'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. CURRENT ROOM SEATS & ROSTER (RED VS BLUE) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* RED TEAM ROSTER */}
         <div className="bg-gradient-to-b from-red-950/40 via-zinc-900/90 to-zinc-900/90 border-2 border-red-500/50 rounded-3xl p-5 shadow-xl flex flex-col justify-between">
@@ -190,7 +347,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </h3>
               </div>
               <span className="text-xs font-mono text-zinc-400 bg-red-950/60 px-2.5 py-1 rounded-full border border-red-800/40">
-                {1 + redOperatives.length} {language === 'fr' ? 'joueurs' : 'players'}
+                {(redSpymaster ? 1 : 0) + redOperatives.length} {language === 'fr' ? 'joueurs' : 'players'}
               </span>
             </div>
 
@@ -209,7 +366,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       {redSpymaster.name}
                     </span>
                     {redSpymaster.id === currentPlayerId && (
-                      <span className="text-[10px] bg-red-500 text-white font-mono px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] bg-red-500 text-white font-mono px-2 py-0.5 rounded-full font-bold">
                         {language === 'fr' ? 'VOUS' : 'YOU'}
                       </span>
                     )}
@@ -258,7 +415,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           {op.name}
                         </span>
                         {op.id === currentPlayerId && (
-                          <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full font-mono">
+                          <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
                             {language === 'fr' ? 'VOUS' : 'YOU'}
                           </span>
                         )}
@@ -293,7 +450,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </h3>
               </div>
               <span className="text-xs font-mono text-zinc-400 bg-blue-950/60 px-2.5 py-1 rounded-full border border-blue-800/40">
-                {1 + blueOperatives.length} {language === 'fr' ? 'joueurs' : 'players'}
+                {(blueSpymaster ? 1 : 0) + blueOperatives.length} {language === 'fr' ? 'joueurs' : 'players'}
               </span>
             </div>
 
@@ -312,7 +469,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       {blueSpymaster.name}
                     </span>
                     {blueSpymaster.id === currentPlayerId && (
-                      <span className="text-[10px] bg-blue-500 text-white font-mono px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] bg-blue-500 text-white font-mono px-2 py-0.5 rounded-full font-bold">
                         {language === 'fr' ? 'VOUS' : 'YOU'}
                       </span>
                     )}
@@ -361,7 +518,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           {op.name}
                         </span>
                         {op.id === currentPlayerId && (
-                          <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/40 px-2 py-0.5 rounded-full font-mono">
+                          <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/40 px-2 py-0.5 rounded-full font-mono font-bold">
                             {language === 'fr' ? 'VOUS' : 'YOU'}
                           </span>
                         )}
@@ -386,7 +543,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         </div>
       </div>
 
-      {/* SPECTATORS & GAME CONFIGURATION BAR */}
+      {/* 4. SPECTATORS, SETTINGS & LAUNCH GAME */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Spectators */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
@@ -425,7 +582,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         {/* Theme & Language Selectors */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between gap-2">
           <span className="text-xs font-mono uppercase text-zinc-400 font-bold block">
-            {language === 'fr' ? 'Configuration de Partie' : 'Game Options'}
+            {language === 'fr' ? 'Options de la Salle' : 'Room Options'}
           </span>
 
           <div className="grid grid-cols-2 gap-2">
@@ -496,12 +653,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-4">
               <h3 className="font-mono font-bold text-base text-white uppercase">
                 {modalMode === 'create'
-                  ? language === 'fr' ? 'Créer une Salle' : 'Create Room'
+                  ? language === 'fr' ? 'Créer une Salle' : 'Create Party'
                   : language === 'fr' ? 'Rejoindre une Salle' : 'Join Room'}
               </h3>
               <button
                 onClick={() => setShowRoomModal(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+                className="p-1 rounded-lg text-zinc-400 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
