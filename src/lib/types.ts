@@ -10,6 +10,16 @@ export type Language = 'en' | 'fr';
 
 export type GameTheme = 'classic' | 'harrypotter';
 
+export type LobbyViewMode = 'lobby' | 'game';
+
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+  team: Team | 'spectator';
+  role: PlayerRole;
+  isReady?: boolean;
+}
+
 export interface GameCard {
   id: number;
   word: string;

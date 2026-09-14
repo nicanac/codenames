@@ -1,16 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Share2, Check, RefreshCw, BookOpen, Globe, Sparkles } from 'lucide-react';
-import { GameTheme, Language } from '../lib/types';
+import { Volume2, VolumeX, Share2, Check, RefreshCw, BookOpen, Globe, Sparkles, LayoutGrid, Users, User } from 'lucide-react';
+import { GameTheme, Language, LobbyViewMode } from '../lib/types';
 import { sounds } from '../lib/audio';
 
 interface HeaderProps {
   roomId: string;
   language: Language;
   theme: GameTheme;
+  viewMode: LobbyViewMode;
+  playerName?: string;
   onLanguageChange: (lang: Language) => void;
   onThemeChange: (theme: GameTheme) => void;
+  onToggleViewMode: () => void;
   onNewGame: () => void;
   onOpenRules: () => void;
 }
@@ -19,8 +22,11 @@ export const Header: React.FC<HeaderProps> = ({
   roomId,
   language,
   theme,
+  viewMode,
+  playerName,
   onLanguageChange,
   onThemeChange,
+  onToggleViewMode,
   onNewGame,
   onOpenRules,
 }) => {
@@ -67,30 +73,61 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Room badge & Copy */}
-        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-xs">
-          <span className="text-zinc-400 font-mono">
-            {language === 'fr' ? 'SALLE' : 'ROOM'}:
-          </span>
-          <span className="font-mono font-bold tracking-widest text-amber-400">{roomId}</span>
-          <button
-            onClick={handleCopyLink}
-            className="ml-1 text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-1 focus:outline-none"
-            title={language === 'fr' ? 'Copier le lien' : 'Copy game link'}
-          >
-            {copied ? (
-              <span className="flex items-center text-emerald-400 text-[11px] font-sans font-medium">
-                <Check className="w-3.5 h-3.5 mr-0.5" />
-                {language === 'fr' ? 'Copié!' : 'Copied!'}
-              </span>
-            ) : (
-              <Share2 className="w-3.5 h-3.5" />
-            )}
-          </button>
+        {/* Room badge & Player pill */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {playerName && (
+            <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-xs">
+              <User className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-mono font-bold text-zinc-200">{playerName}</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-xs">
+            <span className="text-zinc-400 font-mono">
+              {language === 'fr' ? 'SALLE' : 'ROOM'}:
+            </span>
+            <span className="font-mono font-bold tracking-widest text-amber-400">{roomId}</span>
+            <button
+              onClick={handleCopyLink}
+              className="ml-1 text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-1 focus:outline-none cursor-pointer"
+              title={language === 'fr' ? 'Copier le lien' : 'Copy game link'}
+            >
+              {copied ? (
+                <span className="flex items-center text-emerald-400 text-[11px] font-sans font-medium">
+                  <Check className="w-3.5 h-3.5 mr-0.5" />
+                  {language === 'fr' ? 'Copié!' : 'Copied!'}
+                </span>
+              ) : (
+                <Share2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Actions & Settings */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* LOBBY / GAME TOGGLE */}
+          <button
+            onClick={onToggleViewMode}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+              viewMode === 'lobby'
+                ? 'bg-amber-400 text-zinc-950 shadow-md ring-1 ring-amber-300'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/40'
+            }`}
+            title={viewMode === 'lobby' ? 'Aller au plateau' : 'Ouvrir le salon'}
+          >
+            {viewMode === 'lobby' ? (
+              <>
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>{language === 'fr' ? 'Plateau' : 'Board'}</span>
+              </>
+            ) : (
+              <>
+                <Users className="w-3.5 h-3.5" />
+                <span>{language === 'fr' ? 'Salon / Lobby' : 'Lobby'}</span>
+              </>
+            )}
+          </button>
           {/* Theme Switcher */}
           <button
             onClick={() => onThemeChange(theme === 'classic' ? 'harrypotter' : 'classic')}

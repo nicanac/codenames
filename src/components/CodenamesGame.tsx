@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { GameState, GameTheme, Language, PlayerRole, UserTeamChoice } from '../lib/types';
+import React, { useState, useEffect, useRef } from 'react';
+import { GameState, GameTheme, Language, LobbyPlayer, LobbyViewMode, PlayerRole, Team, UserTeamChoice } from '../lib/types';
 import { createGame, giveClue, makeGuess, endTurn, generateSeed, generateRoomId } from '../lib/engine';
 import { sounds } from '../lib/audio';
+import { getLocalPlayerId, getLocalNickname, setLocalNickname, RoomSyncChannel } from '../lib/lobbySync';
 import { Header } from './Header';
 import { ScoreBoard } from './ScoreBoard';
 import { RoleToggle } from './RoleToggle';
@@ -12,6 +13,7 @@ import { CardGrid } from './CardGrid';
 import { HistoryDrawer } from './HistoryDrawer';
 import { VictoryModal } from './VictoryModal';
 import { RulesModal } from './RulesModal';
+import { LobbyView } from './LobbyView';
 
 function getInitialGameState(): GameState {
   let initialRoom = generateRoomId();
@@ -44,9 +46,24 @@ function getInitialGameState(): GameState {
 
 export default function CodenamesGame() {
   const [gameState, setGameState] = useState<GameState>(getInitialGameState);
+  const [viewMode, setViewMode] = useState<LobbyViewMode>('lobby'); // Pure Lobby by default!
   const [myTeam, setMyTeam] = useState<UserTeamChoice>('both');
   const [role, setRole] = useState<PlayerRole>('operative');
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+
+  // Player & Multi-tab Lobby synchronization
+  const [playerId] = useState<string>(getLocalPlayerId);
+  const [playerName, setPlayerName] = useState<string>(() => getLocalNickname('harrypotter'));
+  const [players, setPlayers] = useState<LobbyPlayer[]>(() => [
+    {
+      id: getLocalPlayerId(),
+      name: getLocalNickname('harrypotter'),
+      team: 'spectator',
+      role: 'operative',
+    },
+  ]);
+
+  const channelRef = useRef<RoomSyncChannel | null>(null);
 
   // Sync state to URL hash
   const updateUrlHash = (room: string, seed: string, lang: Language, theme: GameTheme) => {
@@ -62,6 +79,74 @@ export default function CodenamesGame() {
   useEffect(() => {
     updateUrlHash(gameState.roomId, gameState.seed, gameState.language, gameState.theme);
   }, [gameState.roomId, gameState.seed, gameState.language, gameState.theme]);
+
+  // Set up BroadcastChannel for real-time room communication
+  useEffect(() => {
+    const channel = new RoomSyncChannel(gameState.roomId);
+    channelRef.current = channel;
+
+    // Broadcast current presence
+    const currentMe: LobbyPlayer = {
+      id: playerId,
+      name: playerName,
+      team: myTeam === 'both' ? 'spectator' : myTeam,
+      role,
+    };
+    channel.broadcast('PRESENCE', currentMe);
+
+    channel.onMessage((msg) => {
+      if (!msg || !msg.type) return;
+
+      if (msg.type === 'PRESENCE') {
+        const incoming = msg.payload as LobbyPlayer;
+        if (!incoming || incoming.id === playerId) return;
+
+        setPlayers((prev) => {
+          const filtered = prev.filter((p) => p.id !== incoming.id);
+          return [...filtered, incoming];
+        });
+
+        // Reply with our presence so the newcomer knows about us
+        channel.broadcast('REPLY_PRESENCE', currentMe);
+      }
+
+      if (msg.type === 'REPLY_PRESENCE') {
+        const incoming = msg.payload as LobbyPlayer;
+        if (!incoming || incoming.id === playerId) return;
+
+        setPlayers((prev) => {
+          const filtered = prev.filter((p) => p.id !== incoming.id);
+          return [...filtered, incoming];
+        });
+      }
+
+      if (msg.type === 'START_GAME') {
+        setViewMode('game');
+      }
+
+      if (msg.type === 'CONFIG_UPDATE') {
+        const { theme, language, timerDuration, seed } = msg.payload as {
+          theme: GameTheme;
+          language: Language;
+          timerDuration: number;
+          seed: string;
+        };
+        setGameState((prev) =>
+          createGame({
+            roomId: prev.roomId,
+            seed,
+            language,
+            theme,
+            timerDuration,
+          })
+        );
+      }
+    });
+
+    return () => {
+      channel.close();
+    };
+  }, [gameState.roomId, playerId, playerName, myTeam, role]);
 
   // Timer Tick Effect
   const isTimerRunning = gameState.isTimerRunning;
@@ -106,7 +191,6 @@ export default function CodenamesGame() {
 
     const { state: newState, card } = makeGuess(gameState, cardId);
 
-    // Audio feedback depending on revealed card
     setTimeout(() => {
       if (card.type === 'assassin') {
         sounds.playAssassin();
@@ -150,7 +234,6 @@ export default function CodenamesGame() {
       timerDuration: gameState.timerDuration,
     });
     setGameState(newGame);
-    setRole('operative');
     updateUrlHash(newGame.roomId, nextSeed, newGame.language, newGame.theme);
   };
 
@@ -165,6 +248,12 @@ export default function CodenamesGame() {
     });
     setGameState(newGame);
     updateUrlHash(newGame.roomId, newGame.seed, lang, newGame.theme);
+    channelRef.current?.broadcast('CONFIG_UPDATE', {
+      theme: gameState.theme,
+      language: lang,
+      timerDuration: gameState.timerDuration,
+      seed: gameState.seed,
+    });
   };
 
   // Handle Theme Change
@@ -178,6 +267,12 @@ export default function CodenamesGame() {
     });
     setGameState(newGame);
     updateUrlHash(newGame.roomId, newGame.seed, newGame.language, newTheme);
+    channelRef.current?.broadcast('CONFIG_UPDATE', {
+      theme: newTheme,
+      language: gameState.language,
+      timerDuration: gameState.timerDuration,
+      seed: gameState.seed,
+    });
   };
 
   // Timer Toggles
@@ -193,6 +288,82 @@ export default function CodenamesGame() {
     }));
   };
 
+  const handleUpdateTimerDuration = (duration: number) => {
+    setGameState((prev) => ({
+      ...prev,
+      timerDuration: duration,
+      timerSecondsLeft: duration,
+      isTimerRunning: duration > 0,
+    }));
+  };
+
+  // LOBBY HANDLERS
+  const handleUpdateNickname = (name: string) => {
+    setPlayerName(name);
+    setLocalNickname(name);
+    const updated: LobbyPlayer = {
+      id: playerId,
+      name,
+      team: myTeam === 'both' ? 'spectator' : myTeam,
+      role,
+    };
+    setPlayers((prev) => prev.map((p) => (p.id === playerId ? updated : p)));
+    channelRef.current?.broadcast('PRESENCE', updated);
+  };
+
+  const handleClaimSeat = (targetTeam: Team | 'spectator', targetRole: PlayerRole) => {
+    const updatedTeamChoice: UserTeamChoice = targetTeam === 'spectator' ? 'both' : targetTeam;
+    setMyTeam(updatedTeamChoice);
+    setRole(targetRole);
+
+    const updated: LobbyPlayer = {
+      id: playerId,
+      name: playerName,
+      team: targetTeam,
+      role: targetRole,
+    };
+
+    setPlayers((prev) => {
+      const filtered = prev.filter((p) => p.id !== playerId);
+      return [...filtered, updated];
+    });
+
+    channelRef.current?.broadcast('PRESENCE', updated);
+  };
+
+  const handleCreateRoom = (customRoomId: string) => {
+    const nextSeed = generateSeed();
+    const newGame = createGame({
+      roomId: customRoomId,
+      seed: nextSeed,
+      language: gameState.language,
+      theme: gameState.theme,
+      timerDuration: gameState.timerDuration,
+    });
+    setGameState(newGame);
+    setViewMode('lobby');
+    updateUrlHash(customRoomId, nextSeed, newGame.language, newGame.theme);
+  };
+
+  const handleJoinRoom = (targetRoomId: string) => {
+    const nextSeed = generateSeed();
+    const newGame = createGame({
+      roomId: targetRoomId,
+      seed: nextSeed,
+      language: gameState.language,
+      theme: gameState.theme,
+      timerDuration: gameState.timerDuration,
+    });
+    setGameState(newGame);
+    setViewMode('lobby');
+    updateUrlHash(targetRoomId, nextSeed, newGame.language, newGame.theme);
+  };
+
+  const handleStartGame = () => {
+    setViewMode('game');
+    channelRef.current?.broadcast('START_GAME', {});
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Spy grid background pattern */}
@@ -203,52 +374,87 @@ export default function CodenamesGame() {
         roomId={gameState.roomId}
         language={gameState.language}
         theme={gameState.theme}
+        viewMode={viewMode}
+        playerName={playerName}
         onLanguageChange={handleLanguageChange}
         onThemeChange={handleThemeChange}
+        onToggleViewMode={() => setViewMode(viewMode === 'lobby' ? 'game' : 'lobby')}
         onNewGame={handleNewGame}
         onOpenRules={() => setIsRulesOpen(true)}
       />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto py-2 flex flex-col relative z-10">
-        {/* Score & Turn Banner */}
-        <ScoreBoard
-          gameState={gameState}
-          myTeam={myTeam}
-          onTimerToggle={handleTimerToggle}
-          onTimerReset={handleTimerReset}
-          onJoinTeam={(team) => setMyTeam(team)}
-        />
+      {/* VIEW CONDITIONAL: LOBBY VS 5x5 GAME BOARD */}
+      {viewMode === 'lobby' ? (
+        <main className="flex-1 w-full max-w-6xl mx-auto py-2 flex flex-col relative z-10">
+          <LobbyView
+            roomId={gameState.roomId}
+            seed={gameState.seed}
+            theme={gameState.theme}
+            language={gameState.language}
+            timerDuration={gameState.timerDuration}
+            players={players}
+            currentPlayerId={playerId}
+            onUpdateNickname={handleUpdateNickname}
+            onClaimSeat={handleClaimSeat}
+            onUpdateTheme={handleThemeChange}
+            onUpdateLanguage={handleLanguageChange}
+            onUpdateTimer={handleUpdateTimerDuration}
+            onCreateRoom={handleCreateRoom}
+            onJoinRoom={handleJoinRoom}
+            onStartGame={handleStartGame}
+          />
+        </main>
+      ) : (
+        <main className="flex-1 w-full max-w-6xl mx-auto py-2 flex flex-col relative z-10">
+          {/* Score & Turn Banner */}
+          <ScoreBoard
+            gameState={gameState}
+            myTeam={myTeam}
+            onTimerToggle={handleTimerToggle}
+            onTimerReset={handleTimerReset}
+            onJoinTeam={(team) => {
+              setMyTeam(team);
+              handleClaimSeat(team === 'both' ? 'spectator' : team, role);
+            }}
+          />
 
-        {/* Role & Team Switcher */}
-        <RoleToggle
-          role={role}
-          myTeam={myTeam}
-          language={gameState.language}
-          onRoleChange={(newRole) => setRole(newRole)}
-          onTeamChange={(team) => setMyTeam(team)}
-        />
+          {/* Role & Team Switcher */}
+          <RoleToggle
+            role={role}
+            myTeam={myTeam}
+            language={gameState.language}
+            onRoleChange={(newRole) => {
+              setRole(newRole);
+              handleClaimSeat(myTeam === 'both' ? 'spectator' : myTeam, newRole);
+            }}
+            onTeamChange={(team) => {
+              setMyTeam(team);
+              handleClaimSeat(team === 'both' ? 'spectator' : team, role);
+            }}
+          />
 
-        {/* Active Clue & Guessing Controls */}
-        <ClueBar
-          gameState={gameState}
-          role={role}
-          onGiveClue={handleGiveClue}
-          onEndTurn={handleEndTurn}
-        />
+          {/* Active Clue & Guessing Controls */}
+          <ClueBar
+            gameState={gameState}
+            role={role}
+            onGiveClue={handleGiveClue}
+            onEndTurn={handleEndTurn}
+          />
 
-        {/* 5x5 Card Grid */}
-        <CardGrid
-          gameState={gameState}
-          role={role}
-          onCardClick={handleCardClick}
-        />
+          {/* 5x5 Card Grid */}
+          <CardGrid
+            gameState={gameState}
+            role={role}
+            onCardClick={handleCardClick}
+          />
 
-        {/* History Log Accordion */}
-        <HistoryDrawer
-          history={gameState.history}
-          language={gameState.language}
-        />
-      </main>
+          {/* History Log Accordion */}
+          <HistoryDrawer
+            history={gameState.history}
+            language={gameState.language}
+          />
+        </main>
+      )}
 
       {/* Victory Celebration Modal */}
       <VictoryModal
