@@ -1,6 +1,19 @@
 import { CardType, Clue, GameCard, GameState, HistoryItem, Language, Team } from './types';
 import { ENGLISH_WORDS } from './words/en';
-import { FRENCH_WORDS } from './words/fr';
+import { FRENCH_WORDS, WORDS_FR } from './words/fr';
+
+export function sampleWords(pool: readonly string[] = WORDS_FR, count = 25): string[] {
+  if (pool.length < count) {
+    throw new Error('Word pool size is smaller than requested board size');
+  }
+
+  const indices = new Set<number>();
+  while (indices.size < count) {
+    indices.add(Math.floor(Math.random() * pool.length));
+  }
+
+  return Array.from(indices).map((idx) => pool[idx]);
+}
 
 // Mulberry32 32-bit PRNG
 function mulberry32(a: number) {
