@@ -138,6 +138,18 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, language, onClos
                 : 'Your team may guess up to the announced number PLUS one bonus guess (to catch up on previous clues). You may end your turn at any time by pressing "End Turn".'}
             </p>
           </div>
+
+          <div className="p-3 rounded-2xl bg-amber-950/30 border border-amber-500/30">
+            <h3 className="font-bold text-xs text-amber-300 font-mono uppercase tracking-wide mb-1 flex items-center gap-1.5">
+              <span>⚡</span>
+              <span>{language === 'fr' ? 'Édition Harry Potter' : 'Harry Potter Edition'}</span>
+            </h3>
+            <p className="text-[11px] text-zinc-300">
+              {language === 'fr'
+                ? "Chaque grille combine environ 18 concepts/objets magiques et 7 personnages emblématiques. Les noms propres sont autorisés comme indices (ex: 'Poudlard', 'Serpentard'), mais le Maître-espion ne peut pas utiliser le nom d'un personnage visible sur la grille."
+                : "Each grid balances ~18 magical lore concepts with ~7 iconic characters. Proper nouns are legal clues by mutual agreement, but the Spymaster cannot cite the direct name of an unrevealed character on the board."}
+            </p>
+          </div>
         </div>
 
         {/* Close button */}

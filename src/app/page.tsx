@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { GameState, Language, PlayerRole } from '../lib/types';
+import { GameState, GameTheme, Language, PlayerRole } from '../lib/types';
 import { createGame, giveClue, makeGuess, endTurn, generateSeed, generateRoomId } from '../lib/engine';
 import { sounds } from '../lib/audio';
 import { Header } from '../components/Header';
@@ -17,6 +17,7 @@ function getInitialGameState(): GameState {
   let initialRoom = generateRoomId();
   let initialSeed = generateSeed();
   let initialLang: Language = 'fr';
+  let initialTheme: GameTheme = 'harrypotter'; // Default to Harry Potter edition as requested
 
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace(/^#/, '');
@@ -25,16 +26,19 @@ function getInitialGameState(): GameState {
     const hashRoom = params.get('room');
     const hashSeed = params.get('seed');
     const hashLang = params.get('lang') as Language;
+    const hashTheme = params.get('theme') as GameTheme;
 
     if (hashRoom) initialRoom = hashRoom;
     if (hashSeed) initialSeed = hashSeed;
     if (hashLang === 'en' || hashLang === 'fr') initialLang = hashLang;
+    if (hashTheme === 'harrypotter' || hashTheme === 'classic') initialTheme = hashTheme;
   }
 
   return createGame({
     roomId: initialRoom,
     seed: initialSeed,
     language: initialLang,
+    theme: initialTheme,
   });
 }
 
@@ -44,19 +48,19 @@ export default function CodenamesApp() {
   const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   // Sync state to URL hash
-  const updateUrlHash = (room: string, seed: string, lang: Language) => {
+  const updateUrlHash = (room: string, seed: string, lang: Language, theme: GameTheme) => {
     if (typeof window !== 'undefined') {
-      const newHash = `room=${room}&seed=${seed}&lang=${lang}`;
+      const newHash = `room=${room}&seed=${seed}&lang=${lang}&theme=${theme}`;
       if (window.location.hash !== `#${newHash}`) {
         window.history.replaceState(null, '', `#${newHash}`);
       }
     }
   };
 
-  // Sync hash whenever room, seed, or language changes
+  // Sync hash whenever room, seed, language, or theme changes
   useEffect(() => {
-    updateUrlHash(gameState.roomId, gameState.seed, gameState.language);
-  }, [gameState.roomId, gameState.seed, gameState.language]);
+    updateUrlHash(gameState.roomId, gameState.seed, gameState.language, gameState.theme);
+  }, [gameState.roomId, gameState.seed, gameState.language, gameState.theme]);
 
   // Timer Tick Effect
   const isTimerRunning = gameState.isTimerRunning;
@@ -142,11 +146,12 @@ export default function CodenamesApp() {
       roomId: gameState.roomId,
       seed: nextSeed,
       language: gameState.language,
+      theme: gameState.theme,
       timerDuration: gameState.timerDuration,
     });
     setGameState(newGame);
     setRole('operative');
-    updateUrlHash(newGame.roomId, nextSeed, newGame.language);
+    updateUrlHash(newGame.roomId, nextSeed, newGame.language, newGame.theme);
   };
 
   // Handle Language Change
@@ -155,10 +160,24 @@ export default function CodenamesApp() {
       roomId: gameState.roomId,
       seed: gameState.seed,
       language: lang,
+      theme: gameState.theme,
       timerDuration: gameState.timerDuration,
     });
     setGameState(newGame);
-    updateUrlHash(newGame.roomId, newGame.seed, lang);
+    updateUrlHash(newGame.roomId, newGame.seed, lang, newGame.theme);
+  };
+
+  // Handle Theme Change
+  const handleThemeChange = (newTheme: GameTheme) => {
+    const newGame = createGame({
+      roomId: gameState.roomId,
+      seed: gameState.seed,
+      language: gameState.language,
+      theme: newTheme,
+      timerDuration: gameState.timerDuration,
+    });
+    setGameState(newGame);
+    updateUrlHash(newGame.roomId, newGame.seed, newGame.language, newTheme);
   };
 
   // Timer Toggles
@@ -183,7 +202,9 @@ export default function CodenamesApp() {
       <Header
         roomId={gameState.roomId}
         language={gameState.language}
+        theme={gameState.theme}
         onLanguageChange={handleLanguageChange}
+        onThemeChange={handleThemeChange}
         onNewGame={handleNewGame}
         onOpenRules={() => setIsRulesOpen(true)}
       />

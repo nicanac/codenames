@@ -6,6 +6,8 @@ export type PlayerRole = 'operative' | 'spymaster';
 
 export type Language = 'en' | 'fr';
 
+export type GameTheme = 'classic' | 'harrypotter';
+
 export interface GameCard {
   id: number;
   word: string;
@@ -39,6 +41,7 @@ export interface GameState {
   roomId: string;
   seed: string;
   language: Language;
+  theme: GameTheme;
   cards: GameCard[];
   firstTeam: Team;
   currentTeam: Team;

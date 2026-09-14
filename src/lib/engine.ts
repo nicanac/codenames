@@ -1,6 +1,9 @@
-import { CardType, Clue, GameCard, GameState, HistoryItem, Language, Team } from './types';
+import { CardType, Clue, GameCard, GameState, HistoryItem, Language, Team, GameTheme } from './types';
 import { ENGLISH_WORDS } from './words/en';
 import { FRENCH_WORDS, WORDS_FR } from './words/fr';
+import { buildHarryPotterBoardWords, getHarryPotterWords } from './words/harrypotter';
+
+export { buildHarryPotterBoardWords, getHarryPotterWords };
 
 export function sampleWords(pool: readonly string[] = WORDS_FR, count = 25): string[] {
   if (pool.length < count) {
@@ -70,10 +73,12 @@ export function createGame(options?: {
   seed?: string;
   roomId?: string;
   language?: Language;
+  theme?: GameTheme;
   startingTeam?: Team;
   timerDuration?: number;
 }): GameState {
   const language = options?.language || 'fr';
+  const theme = options?.theme || 'classic';
   const seed = options?.seed || generateSeed();
   const roomId = options?.roomId || generateRoomId();
   const timerDuration = options?.timerDuration !== undefined ? options?.timerDuration : 90;
@@ -84,10 +89,15 @@ export function createGame(options?: {
   const firstTeam: Team = options?.startingTeam || (rng() < 0.5 ? 'red' : 'blue');
   const secondTeam: Team = firstTeam === 'red' ? 'blue' : 'red';
 
-  // Pick 25 unique words
-  const fullWordPool = getWordList(language);
-  const shuffledPool = shuffle(fullWordPool, rng);
-  const chosenWords = shuffledPool.slice(0, 25);
+  // Pick 25 unique words based on theme
+  let chosenWords: string[];
+  if (theme === 'harrypotter') {
+    chosenWords = buildHarryPotterBoardWords(language, rng);
+  } else {
+    const fullWordPool = getWordList(language);
+    const shuffledPool = shuffle(fullWordPool, rng);
+    chosenWords = shuffledPool.slice(0, 25);
+  }
 
   // Generate 25 card types:
   // 9 for starting team, 8 for second team, 1 assassin, 7 neutral
@@ -119,6 +129,7 @@ export function createGame(options?: {
     roomId,
     seed,
     language,
+    theme,
     cards,
     firstTeam,
     currentTeam: firstTeam,

@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Share2, Check, RefreshCw, BookOpen, Globe } from 'lucide-react';
-import { Language } from '../lib/types';
+import { Volume2, VolumeX, Share2, Check, RefreshCw, BookOpen, Globe, Sparkles } from 'lucide-react';
+import { GameTheme, Language } from '../lib/types';
 import { sounds } from '../lib/audio';
 
 interface HeaderProps {
   roomId: string;
   language: Language;
+  theme: GameTheme;
   onLanguageChange: (lang: Language) => void;
+  onThemeChange: (theme: GameTheme) => void;
   onNewGame: () => void;
   onOpenRules: () => void;
 }
@@ -16,7 +18,9 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   roomId,
   language,
+  theme,
   onLanguageChange,
+  onThemeChange,
   onNewGame,
   onOpenRules,
 }) => {
@@ -49,9 +53,16 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-red-500">CODE</span>
               <span className="text-zinc-200">NAMES</span>
               <span className="text-blue-500">.</span>
+              {theme === 'harrypotter' && (
+                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-sans font-bold flex items-center gap-1 ml-1 animate-pulse">
+                  ⚡ HP
+                </span>
+              )}
             </h1>
             <p className="text-[10px] text-zinc-400 font-mono tracking-wide hidden sm:block">
-              {language === 'fr' ? 'Édition Espionnage Tactique' : 'Tactical Espionage Edition'}
+              {theme === 'harrypotter'
+                ? (language === 'fr' ? 'Édition Magique : Sorciers & Poudlard' : 'Magical Edition: Wizards & Hogwarts')
+                : (language === 'fr' ? 'Édition Espionnage Tactique' : 'Tactical Espionage Edition')}
             </p>
           </div>
         </div>
@@ -80,6 +91,20 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Actions & Settings */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Theme Switcher */}
+          <button
+            onClick={() => onThemeChange(theme === 'classic' ? 'harrypotter' : 'classic')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
+              theme === 'harrypotter'
+                ? 'bg-amber-950/70 border-amber-500 text-amber-300 shadow-md shadow-amber-950/50'
+                : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-zinc-300'
+            }`}
+            title={theme === 'harrypotter' ? 'Passer au thème Classique' : 'Activer l’édition Harry Potter'}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>{theme === 'harrypotter' ? '⚡ Harry Potter' : (language === 'fr' ? 'Classique' : 'Classic')}</span>
+          </button>
+
           {/* Language Switch */}
           <button
             onClick={() => onLanguageChange(language === 'fr' ? 'en' : 'fr')}
